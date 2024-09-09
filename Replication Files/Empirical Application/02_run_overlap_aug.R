@@ -53,14 +53,6 @@ Y0_pop = predict(model_hrs_0, newdata = survey_data[survey_data$yop == 0,])
 weighting_covariates = c("female", "age", "urban", "live_together", "education",
                                     "wealthindex", "hhsize", "district")
 
-# covariates = c("female", "age", "urban", "live_together", "education",
-#     "wealthindex", "hhsize", "district")
-# X_cov = model.matrix(~female+age+urban+live_together+education+wealthindex+hhsize+district, df_sample %>% select(covariates))
-# X_cov_pop = model.matrix(~female+age+urban+live_together+education+wealthindex+hhsize+district, survey_data %>% filter(yop==0) %>% select(covariates))
-# model= rlearner::rboost(x = X_cov, w = df_sample$assigned, y = df_sample$training_hours_e)
-# tau_sample = predict(model, newdata = X_cov)
-# tau_pop = predict(model, X_cov_pop)
-
 aug_ipw_hrs = ipw_hrs - mean(weights*(Y1_sample - Y0_sample))/mean(weights) + mean(Y1_pop - Y0_pop)
 
 sigma_w2_aug_hrs = var_w(weights[df_sample$assigned==1], (df_sample$training_hours_e - Y1_sample)[df_sample$assigned==1])-
@@ -72,21 +64,13 @@ benchmark_covariates = c("educ_below9", "educ_above12", "wealthindex_low",
      "rural", "female", "age_under18", "hhsize_high")
 cleaned_covariate_names = c("Educ. (< 9)", "Educ. (> 12)", "Wealth (Low)",
      "Rural", "Female", "Age (< 18)", "Household Size (Large)")
-# df_sample$training_hours_resid = df_sample$training_hours_e -
-# ifelse(df_sample$assigned==1, Y1_sample, Y0_sample)
+
 df_benchmark = data.frame(
     covariate = cleaned_covariate_names,
     lapply(benchmark_covariates, benchmark,
         outcome = "training_hours_e", df_sample, survey_data, sigma_w2_aug_hrs,
         tau_pop = Y1_pop-Y0_pop,
         type = 'augmented')%>% bind_rows())
-
-# df_benchmark = rbind(
-#     data.frame(covariate = "Educ. (< 9)", benchmark('educ_below9', 'training_hours_e', df_sample, survey_data, sigma_w2_hrs)),
-#     data.frame(covariate = "Wealth (Low)", benchmark('wealthindex_low', 'training_hours_e',  df_sample, survey_data, sigma_w2_hrs)),
-#     data.frame(covariate = 'Rural', benchmark('rural', 'training_hours_e',  df_sample, survey_data, sigma_w2_hrs)),
-#     data.frame(covariate = "Household Size (Large)", benchmark('hhsize_high', 'training_hours_e',  df_sample, survey_data, sigma_w2_hrs)),
-#     data.frame(covariate="Female", benchmark('female', 'training_hours_e',  df_sample, survey_data, sigma_w2_hrs)))
 
 df_benchmark$MROB =aug_ipw_hrs/df_benchmark$bias
 
@@ -102,10 +86,9 @@ df_plot = data.frame(R2 = data.fit$r2, p=data.fit$p,
     bias = bias)
 breaks=c(25, 50, seq(0, 1300, by=100), 1500, 2000, 3000)
 
-#FIGURE 2 (a)
+#FIGURE 9 (a)
 df_plot %>% ggplot(aes(x = p, y = R2, z = bias)) +
-    geom_contour(col = "slategray", breaks=breaks) + ggtitle("") + #xlab(expression(R[epsilon]^2)) +
-    #ylab(expression(rho[epsilon * "," * tau])) +
+    geom_contour(col = "slategray", breaks=breaks) + ggtitle("") + 
     metR::geom_text_contour(aes(z = bias), breaks=breaks,
     stroke = 0.2, size=3, color = 'slategray')+ metR::geom_contour_fill(breaks = c(aug_ipw_hrs,
             1000 * aug_ipw_hrs), fill = "skyblue3", alpha = 0.25) +
@@ -171,15 +154,14 @@ df_benchmark_earnings = data.frame(
         type = 'augmented')%>% bind_rows())
 
 df_benchmark_earnings$MROB =aug_ipw_earnings/df_benchmark_earnings$bias
-# r2_vals <- seq(0, 0.9, by = 0.025)
-# p <- seq(0, 0.95, by = 0.025)
-# data.fit <- expand.grid(r2_vals, p)
-# names(data.fit) = c("r2", "p")
+
 bias_earnings = estimate_bias(data.fit$r2, 1, data.fit$p, sigma_w2_aug_earnings)
 df_plot_earnings = data.frame(R2 = data.fit$r2, p=data.fit$p,
     bias = bias_earnings)
 
 breaks_earnings=c(5, seq(10,150, by=10), 200, 300, 400)
+
+#Figure 9 (b)
 df_benchmark_earnings_plot =df_benchmark_earnings %>% filter(!cleaned_covariate_names %in% c("Educ. (> 12)"))
 df_plot_earnings %>% ggplot(aes(x = p, y = R2, z = bias)) +
     geom_contour(col = "slategray", breaks=breaks_earnings) + ggtitle("") +
@@ -225,7 +207,7 @@ print(xtable::xtable(
                RV_aug = c(orv(aug_ipw_hrs, sigma_w2_hrs, 1), orv(aug_ipw_earnings, sigma_w2_earnings, 1)))),
 include.rownames=FALSE)
 
-if(bootstrap=TRUE){
+if(bootstrap==TRUE){
     options(warn=-1)
     set.seed(331)
     df_bs = parallel::mclapply(1:1000, run_iter_aug, df_sample_orig = df_sample, survey_data_orig = survey_data,
@@ -248,8 +230,6 @@ if(bootstrap=TRUE){
 
 
     benchmark_earnings_bs = lapply(df_bs, function(x){ return(x$benchmark_earnings)}) %>% bind_rows()
-    #benchmark_earnings_bs = benchmark_hrs_bs[-which(benchmark_earnings_bs$R2 == Inf),]
-    #benchmark_earnings_bs = benchmark_hrs_bs[-which(benchmark_earnings_bs$R2 > 1),]
 
     df_benchmark_hrs_se = benchmark_hrs_bs %>% group_by(covariate) %>%
     summarize(
@@ -263,7 +243,6 @@ if(bootstrap=TRUE){
         pct= mean(MROB < 1, na.rm=TRUE)*100
     )
 
-    #benchmark_earnings_bs = benchmark_earnings_bs[-which(benchmark_earnings_bs$R2 < 0),]
     df_benchmark_earnings_se = benchmark_earnings_bs %>% group_by(covariate) %>%
     summarize(
         R2 = sd(R2, na.rm=TRUE),
@@ -274,15 +253,7 @@ if(bootstrap=TRUE){
     summarize(
         pct=mean(MROB < 1, na.rm=TRUE)*100
     )
-
-    # quantile(est_hrs, c(0.025, 0.975), na.rm=TRUE)
-    # quantile(orv_hrs_bs, c(0.025, 0.975), na.rm=TRUE)
-    # sd(orv_hrs_bs, na.rm=TRUE)
-    # sd(orv_earnings_bs, na.rm=TRUE)
-
 }
-
-#FULL BENCHMARK TABLE:
 
 #FULL BENCHMARK TABLE:
 benchmark_covariates_all = c("educ_below9", "educ_above12", "wealthindex_low","wealthindex_high",
@@ -310,7 +281,7 @@ df_benchmark_all_earnings$pct_confounding = pct_confounding_earnings$pct
 df_benchmark_all_earnings$sign = ifelse(sign(df_benchmark_all_earnings$rho)==1, "+", "-")
 
 
-##TABLE 2
+##TABLE 4
 print(xtable::xtable(cbind(df_benchmark_all %>% select(-rho),
     df_benchmark_all_earnings %>% select(-rho, -covariate))), include.rownames=FALSE)
 

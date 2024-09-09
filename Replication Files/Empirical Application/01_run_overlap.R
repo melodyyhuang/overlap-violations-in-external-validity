@@ -69,7 +69,7 @@ df_plot = data.frame(R2 = data.fit$r2, p=data.fit$p,
     bias = bias)
 breaks=c(25, 50, seq(0, 1300, by=100), 1500, 2000, 3000)
 
-#FIGURE 2 (a)
+#FIGURE 5 (a)
 df_plot %>% ggplot(aes(x = p, y = R2, z = bias)) +
     geom_contour(col = "slategray", breaks=breaks) + ggtitle("") + #xlab(expression(R[epsilon]^2)) +
     #ylab(expression(rho[epsilon * "," * tau])) +
@@ -115,19 +115,17 @@ df_benchmark_earnings = data.frame(
         df_sample, survey_data, sigma_w2_earnings)%>% bind_rows())
 
 df_benchmark_earnings$MROB =ipw_earnings/df_benchmark_earnings$bias
-# r2_vals <- seq(0, 0.9, by = 0.025)
-# p <- seq(0, 0.95, by = 0.025)
-# data.fit <- expand.grid(r2_vals, p)
-# names(data.fit) = c("r2", "p")
+
 bias_earnings = estimate_bias(data.fit$r2, 1, data.fit$p, sigma_w2_earnings)
 df_plot_earnings = data.frame(R2 = data.fit$r2, p=data.fit$p,
     bias = bias_earnings)
 
 breaks_earnings=c(5, seq(10,150, by=10), 200, 300, 400)
+
+#FIGURE 5 (b)
 df_benchmark_earnings_plot =df_benchmark_earnings %>% filter(!cleaned_covariate_names %in% c("Educ. (> 12)"))
 df_plot_earnings %>% ggplot(aes(x = p, y = R2, z = bias)) +
-    geom_contour(col = "slategray", breaks=breaks_earnings) + ggtitle("") + #xlab(expression(R[epsilon]^2)) +
-    #ylab(expression(rho[epsilon * "," * tau])) +
+    geom_contour(col = "slategray", breaks=breaks_earnings) + ggtitle("") + 
     metR::geom_text_contour(aes(z = bias), color = 'slategray', breaks=breaks_earnings,
     stroke = 0.2)+ metR::geom_contour_fill(breaks = c(ipw_earnings,
             1000 * ipw_earnings), fill = "darkolivegreen", alpha = 0.25) +
@@ -233,7 +231,7 @@ df_benchmark_all_earnings$MROB = ipw_earnings/df_benchmark_all_earnings$bias
 df_benchmark_all_earnings$pct_confounding = pct_confounding_earnings$pct
 df_benchmark_all_earnings$sign = ifelse(sign(df_benchmark_all_earnings$rho)==1, "+", "-")
 
-##TABLE 2
+##TABLE 3
 print(xtable::xtable(cbind(df_benchmark_all %>% dplyr::select(-rho, -pct_confounding),
     df_benchmark_all_earnings %>% dplyr::select(-rho, -covariate, -pct_confounding))), include.rownames=FALSE)
 
